@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>BookMind — AI Book Summarizer</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+  <style>
+    :root {
+      --ink: #1a1210;
+      --parchment: #f5f0e8;
+      --cream: #faf7f2;
+      --amber: #c8813a;
+      --amber-light: #e8a95c;
+      --amber-dark: #9a5f25;
+      --sage: #6b7c5e;
+      --muted: #8a7f72;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--cream);
+      color: var(--ink);
+      min-height: 100vh;
+    }
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      background:
+        radial-gradient(ellipse at 20% 20%, rgba(200,129,58,0.08) 0%, transparent 50%),
+        radial-gradient(ellipse at 80% 80%, rgba(107,124,94,0.07) 0%, transparent 50%);
+      pointer-events: none; z-index: 0;
+    }
+    nav {
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(250,247,242,0.9);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid rgba(200,129,58,0.2);
+      padding: 0 2rem; height: 64px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .logo { font-family: 'Playfair Display', serif; font-size: 1.6rem; font-weight: 900; color: var(--ink); }
+    .logo span { color: var(--amber); }
+    .nav-tag {
+      font-size: 0.75rem; font-weight: 500; letter-spacing: 0.1em; color: var(--muted);
+      text-transform: uppercase; border: 1px solid rgba(200,129,58,0.3);
+      padding: 4px 12px; border-radius: 20px;
+    }
+    .hero { position: relative; z-index: 1; text-align: center; padding: 64px 2rem 40px; }
+    .hero-eyebrow {
+      display: inline-block; font-size: 0.72rem; letter-spacing: 0.2em; font-weight: 500;
+      color: var(--amber); text-transform: uppercase; margin-bottom: 1rem;
+      border-bottom: 2px solid var(--amber); padding-bottom: 4px;
+    }
+    .hero h1 {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(2.2rem, 5vw, 3.8rem); font-weight: 900; line-height: 1.1;
+      color: var(--ink); margin-bottom: 1rem;
+    }
+    .hero h1 em { color: var(--amber); font-style: italic; }
+    .hero p { font-size: 1rem; color: var(--muted); max-width: 460px; margin: 0 auto; line-height: 1.7; }
+
+    .card-wrap { position: relative; z-index: 1; max-width: 720px; margin: 0 auto; padding: 0 1.5rem 80px; }
+    .card {
+      background: #fff; border-radius: 24px;
+      box-shadow: 0 8px 40px rgba(26,18,16,0.12);
+      border: 1px solid rgba(200,129,58,0.15); padding: 2.5rem;
+    }
+
+    /* Upload Zone */
+    .upload-zone {
+      border: 2px dashed rgba(200,129,58,0.4); border-radius: 16px;
+      padding: 2.2rem; text-align: center; cursor: pointer;
+      transition: all 0.25s; background: var(--parchment);
+      margin-bottom: 1.5rem; position: relative; display: block;
+    }
+    .upload-zone:hover { border-color: var(--amber); background: rgba(200,129,58,0.05); transform: translateY(-2px); }
+    .upload-zone.dragover { border-color: var(--amber); background: rgba(200,129,58,0.08); }
+    .upload-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+    .upload-icon { font-size: 2.6rem; margin-bottom: 0.6rem; display: block; }
+    .upload-title { font-family: 'Playfair Display', serif; font-size: 1.1rem; font-weight: 700; color: var(--ink); margin-bottom: 0.3rem; }
+    .upload-sub { font-size: 0.82rem; color: var(--muted); }
+    .file-types { display: flex; gap: 8px; justify-content: center; margin-top: 0.9rem; flex-wrap: wrap; }
+    .file-badge {
+      font-size: 0.68rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;
+      padding: 3px 9px; background: rgba(200,129,58,0.12); color: var(--amber-dark);
+      border-radius: 6px; border: 1px solid rgba(200,129,58,0.25);
+    }
+    .file-selected { font-size: 0.85rem; color: var(--sage); font-weight: 500; margin-top: 0.7rem; display: none; }
+    .file-selected.show { display: block; }
+
+    /* Divider */
+    .divider {
+      display: flex; align-items: center; gap: 12px; color: var(--muted);
+      font-size: 0.75rem; letter-spacing: 0.1em; text-transform: uppercase; margin: 1.5rem 0;
+    }
+    .divider::before, .divider::after {
+      content: ''; flex: 1; height: 1px;
+      background: linear-gradient(to right, transparent, rgba(200,129,58,0.25), transparent);
+    }
+
+    /* Textarea */
+    .input-label { display: block; font-size: 0.75rem; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-bottom: 0.5rem; }
+    textarea {
+      width: 100%; min-height: 110px; border: 1.5px solid rgba(200,129,58,0.25);
+      border-radius: 14px; padding: 0.9rem 1.1rem;
+      font-family: 'DM Sans', sans-serif; font-size: 0.9rem; color: var(--ink);
+      background: var(--parchment); resize: vertical; outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s; line-height: 1.6; margin-bottom: 1.5rem;
+    }
+    textarea:focus { border-color: var(--amber); box-shadow: 0 0 0 3px rgba(200,129,58,0.1); }
+    textarea::placeholder { color: var(--muted); }
+
+    /* Button */
+    .btn-primary {
+      width: 100%; padding: 15px; font-size: 1rem; font-weight: 600;
+      background: linear-gradient(135deg, var(--amber-dark), var(--amber), var(--amber-light));
+      color: #fff; border: none; border-radius: 14px; cursor: pointer;
+      font-family: 'DM Sans', sans-serif;
+      box-shadow: 0 4px 16px rgba(200,129,58,0.35); transition: all 0.3s;
+    }
+    .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 28px rgba(200,129,58,0.45); }
+    .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+
+    /* Loader */
+    .loader { display: none; text-align: center; padding: 2rem 0; }
+    .loader.show { display: block; }
+    .dots { display: flex; justify-content: center; gap: 8px; margin-bottom: 0.8rem; }
+    .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--amber); animation: bounce 1.4s infinite ease-in-out; }
+    .dot:nth-child(2) { animation-delay: 0.2s; }
+    .dot:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes bounce { 0%,80%,100%{transform:scale(0.6);opacity:0.4} 40%{transform:scale(1);opacity:1} }
+    .loader-text { font-size: 0.85rem; color: var(--muted); font-style: italic; }
+
+    /* Output */
+    .output { display: none; margin-top: 2rem; }
+    .output.show { display: block; }
+
+    .out-section {
+      border-radius: 16px; margin-bottom: 1.2rem; overflow: hidden;
+      border: 1px solid rgba(200,129,58,0.2); animation: fadeUp 0.4s ease both;
+    }
+    .out-section:nth-child(1) { animation-delay: 0.05s; }
+    .out-section:nth-child(2) { animation-delay: 0.15s; border-color: rgba(200,129,58,0.3); }
+    .out-section:nth-child(3) { animation-delay: 0.25s; border-color: rgba(107,124,94,0.3); }
+    @keyframes fadeUp { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
+
+    .out-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0.85rem 1.2rem;
+    }
+    .out-tag {
+      font-size: 0.7rem; font-weight: 700; letter-spacing: 0.1em;
+      text-transform: uppercase; padding: 3px 10px; border-radius: 20px; color: #fff;
+    }
+    .sec-transcript .out-header { background: #f8f6f3; border-bottom: 1px solid rgba(26,18,16,0.08); }
+    .sec-transcript .out-tag { background: var(--ink); }
+    .sec-summary .out-header { background: rgba(200,129,58,0.08); border-bottom: 1px solid rgba(200,129,58,0.15); }
+    .sec-summary .out-tag { background: var(--amber); }
+    .sec-audio .out-header { background: rgba(107,124,94,0.08); border-bottom: 1px solid rgba(107,124,94,0.2); }
+    .sec-audio .out-tag { background: var(--sage); }
+
+    .out-body {
+      padding: 1.2rem; font-size: 0.92rem; line-height: 1.8;
+      color: var(--ink); background: #fff; max-height: 200px; overflow-y: auto;
+    }
+    .out-body::-webkit-scrollbar { width: 4px; }
+    .out-body::-webkit-scrollbar-thumb { background: rgba(200,129,58,0.3); border-radius: 4px; }
+
+    .copy-btn {
+      background: none; border: none; cursor: pointer; color: var(--muted);
+      font-size: 0.75rem; font-family: 'DM Sans', sans-serif; transition: color 0.2s;
+    }
+    .copy-btn:hover { color: var(--amber); }
+
+    /* Audio Player */
+    .audio-body { background: #fff; padding: 1.4rem; }
+    .audio-player { display: flex; flex-direction: column; gap: 1rem; }
+    .controls { display: flex; align-items: center; gap: 12px; }
+    .play-btn {
+      width: 50px; height: 50px; border-radius: 50%; flex-shrink: 0;
+      background: linear-gradient(135deg, var(--sage), #8fa880);
+      border: none; cursor: pointer; color: #fff; font-size: 1.1rem;
+      box-shadow: 0 4px 14px rgba(107,124,94,0.4); transition: transform 0.2s;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .play-btn:hover { transform: scale(1.08); }
+    .progress-wrap { flex: 1; display: flex; flex-direction: column; gap: 4px; }
+    .track {
+      height: 6px; border-radius: 3px; background: rgba(107,124,94,0.15);
+      cursor: pointer; overflow: hidden;
+    }
+    .fill {
+      height: 100%; border-radius: 3px; width: 0%;
+      background: linear-gradient(to right, var(--sage), #8fa880);
+      transition: width 0.1s linear; pointer-events: none;
+    }
+    .time-row { display: flex; justify-content: space-between; font-size: 0.72rem; color: var(--muted); }
+    .speed-row { display: flex; align-items: center; gap: 6px; font-size: 0.75rem; color: var(--muted); }
+    .spd {
+      padding: 3px 8px; border-radius: 6px; border: 1px solid rgba(107,124,94,0.3);
+      background: none; cursor: pointer; font-size: 0.72rem; color: var(--sage);
+      font-family: 'DM Sans', sans-serif; transition: all 0.15s;
+    }
+    .spd.active, .spd:hover { background: var(--sage); color: #fff; }
+    .audio-status { font-size: 0.78rem; color: var(--muted); font-style: italic; text-align: center; }
+    .audio-source-label { font-size: 0.72rem; color: var(--muted); }
+
+    .btn-download {
+      width: 100%; padding: 13px; background: transparent; color: var(--sage);
+      font-size: 0.92rem; font-weight: 600; border: 2px solid rgba(107,124,94,0.4);
+      border-radius: 12px; cursor: pointer; font-family: 'DM Sans', sans-serif;
+      margin-top: 1rem; transition: all 0.25s; display: flex; align-items: center; justify-content: center; gap: 8px;
+    }
+    .btn-download:hover { background: var(--sage); color: #fff; }
+
+    footer { text-align: center; padding: 2rem; color: var(--muted); font-size: 0.78rem; border-top: 1px solid rgba(200,129,58,0.1); position: relative; z-index: 1; }
+    footer span { color: var(--amber); }
+
+    @media(max-width:600px) { .card { padding: 1.4rem; } .hero { padding: 40px 1rem 28px; } }
+  </style>
+</head>
+<body>
+
+<nav>
+  <div class="logo">Book<span>Mind</span></div>
+  <span class="nav-tag">✦ AI Powered</span>
+</nav>
+
+<section class="hero">
+  <span class="hero-eyebrow">Summarize any book instantly</span>
+  <h1>Turn Pages into<br/><em>Pure Insight</em></h1>
+  <p>Upload a .txt book file or audio, or paste text — get an AI summary with audio narration.</p>
+</section>
+
+<div class="card-wrap">
+  <div class="card">
+
+    <!-- Upload Zone -->
+    <label class="upload-zone" id="uploadZone">
+      <input type="file" id="fileInput" accept=".txt,.mp3,.wav,.m4a,.ogg" />
+      <span class="upload-icon">📖</span>
+      <div class="upload-title">Drop your file here</div>
+      <div class="upload-sub">Click to browse</div>
+      <div class="file-types">
+        <span class="file-badge">TXT Book</span>
+        <span class="file-badge">MP3</span>
+        <span class="file-badge">WAV</span>
+        <span class="file-badge">M4A</span>
+      </div>
+      <div class="file-selected" id="fileMsg"></div>
+    </label>
+
+    <div class="divider">or paste text</div>
+
+    <label class="input-label" for="pasteText">Book excerpt / text</label>
+    <textarea id="pasteText" placeholder="Paste book content here to summarize…"></textarea>
+
+    <button class="btn-primary" id="genBtn" onclick="generate()">
+      ✦ Generate Summary &amp; Audio
+    </button>
+
+    <!-- Loader -->
+    <div class="loader" id="loader">
+      <div class="dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+      <p class="loader-text" id="loaderMsg">Reading your book…</p>
+    </div>
+
+    <!-- Output -->
+    <div class="output" id="output">
+
+      <!-- Transcription / Book Text Preview -->
+      <div class="out-section sec-transcript">
+        <div class="out-header">
+          <span class="out-tag">📝 Text Preview</span>
+          <button class="copy-btn" onclick="copyEl('transcriptionText', this)">⎘ Copy</button>
+        </div>
+        <div class="out-body" id="transcriptionText"></div>
+      </div>
+
+      <!-- Summary -->
+      <div class="out-section sec-summary">
+        <div class="out-header">
+          <span class="out-tag">📚 Summary</span>
+          <button class="copy-btn" onclick="copyEl('summaryText', this)">⎘ Copy</button>
+        </div>
+        <div class="out-body" id="summaryText"></div>
+      </div>
+
+      <!-- Audio Player -->
+      <div class="out-section sec-audio">
+        <div class="out-header">
+          <span class="out-tag">🔊 Audio Narration</span>
+          <span class="audio-source-label" id="audioLabel">TTS</span>
+        </div>
+        <div class="audio-body">
+          <div class="audio-player">
+            <div class="controls">
+              <button class="play-btn" id="playBtn" onclick="togglePlay()">▶</button>
+              <div class="progress-wrap">
+                <div class="track" id="track" onclick="seekAudio(event)">
+                  <div class="fill" id="fill"></div>
+                </div>
+                <div class="time-row">
+                  <span id="curTime">0:00</span>
+                  <span id="totTime">0:00</span>
+                </div>
+              </div>
+            </div>
+            <div class="speed-row">
+              Speed:
+              <button class="spd active" onclick="setSpeed(1,this)">1×</button>
+              <button class="spd" onclick="setSpeed(1.25,this)">1.25×</button>
+              <button class="spd" onclick="setSpeed(1.5,this)">1.5×</button>
+              <button class="spd" onclick="setSpeed(2,this)">2×</button>
+            </div>
+            <div class="audio-status" id="audioStatus">Ready to play</div>
+          </div>
+          <audio id="player" style="display:none"></audio>
+        </div>
+      </div>
+
+      <button class="btn-download" onclick="downloadSummary()">⬇ Download Summary (.txt)</button>
+    </div>
+
+  </div>
+</div>
+
+<footer>Made with <span>♥</span> using AI — BookMind &copy; 2025</footer>
+
+<script>
+  // ── File select UI ──
+  const fileInput  = document.getElementById('fileInput');
+  const fileMsg    = document.getElementById('fileMsg');
+  const uploadZone = document.getElementById('uploadZone');
+  const player     = document.getElementById('player');
+
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files.length) showFileMsg(fileInput.files[0].name);
+  });
+  uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('dragover'); });
+  uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('dragover'));
+  uploadZone.addEventListener('drop', e => {
+    e.preventDefault(); uploadZone.classList.remove('dragover');
+    if (e.dataTransfer.files.length) {
+      fileInput.files = e.dataTransfer.files;
+      showFileMsg(e.dataTransfer.files[0].name);
+    }
+  });
+  function showFileMsg(name) { fileMsg.textContent = '✓ ' + name; fileMsg.classList.add('show'); }
+
+  // ── Loader cycling ──
+  const msgs = ['Reading your book…','Analysing the text…','Crafting your summary…','Almost done…'];
+  let msgIdx = 0, msgTimer = null;
+  function startLoader() {
+    msgIdx = 0; document.getElementById('loaderMsg').textContent = msgs[0];
+    msgTimer = setInterval(() => { msgIdx = (msgIdx+1)%msgs.length; document.getElementById('loaderMsg').textContent = msgs[msgIdx]; }, 2200);
+  }
+  function stopLoader() { clearInterval(msgTimer); }
+
+  // ── TTS state ──
+  let usingTTS = false, ttsUtt = null, ttsPlaying = false, ttsPaused = false;
+  let ttsTimer = null, ttsStart = 0, ttsDur = 0, ttsElapsed = 0;
+
+  // ── MAIN generate ──
+  async function generate() {
+    const pasteText = document.getElementById('pasteText').value.trim();
+    const hasFile   = fileInput.files.length > 0;
+    if (!hasFile && !pasteText) { alert('Please upload a file or paste some text.'); return; }
+
+    const btn    = document.getElementById('genBtn');
+    const loader = document.getElementById('loader');
+    const output = document.getElementById('output');
+
+    stopTTS(); player.src = ''; usingTTS = false;
+    btn.disabled = true; output.classList.remove('show');
+    loader.classList.add('show'); startLoader();
+
+    try {
+      if (hasFile) {
+        const file = fileInput.files[0];
+        const name = file.name.toLowerCase();
+
+        if (name.endsWith('.txt')) {
+          // ── TXT book → /upload-book ──
+          const fd = new FormData(); fd.append('file', file);
+          const resp = await fetch('http://localhost:5000/upload-book', { method: 'POST', body: fd });
+          if (!resp.ok) { const t = await resp.text(); throw new Error(t); }
+          const data = await resp.json();
+          if (data.error) throw new Error(data.error);
+          showOutput(data.transcription, data.summary, true); // TTS for text
+
+        } else if (/\.(mp3|wav|m4a|ogg)$/i.test(name)) {
+          // ── Audio → /summarize ──
+          player.src = URL.createObjectURL(file);
+          const fd = new FormData(); fd.append('file', file);
+          const resp = await fetch('http://localhost:5000/summarize', { method: 'POST', body: fd });
+          if (!resp.ok) { const t = await resp.text(); throw new Error(t); }
+          const data = await resp.json();
+          if (data.error) throw new Error(data.error);
+          showOutput(data.transcription, data.summary, false); // file audio
+
+        } else {
+          throw new Error('Unsupported file type. Use .txt, .mp3, .wav, .m4a');
+        }
+
+      } else {
+        // ── Pasted text → /summarize-text ──
+        const resp = await fetch('http://localhost:5000/summarize-text', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: pasteText })
+        });
+        if (!resp.ok) { const t = await resp.text(); throw new Error(t); }
+        const data = await resp.json();
+        if (data.error) throw new Error(data.error);
+        showOutput(data.transcription, data.summary, true); // TTS
+      }
+
+    } catch (err) {
+      stopLoader(); loader.classList.remove('show'); btn.disabled = false;
+      alert('Error: ' + err.message + '\n\nMake sure Flask is running:\npython app.py');
+    }
+  }
+
+  function showOutput(transcription, summary, tts) {
+    stopLoader();
+    document.getElementById('loader').classList.remove('show');
+    document.getElementById('genBtn').disabled = false;
+    document.getElementById('transcriptionText').textContent = transcription;
+    document.getElementById('summaryText').textContent = summary;
+    document.getElementById('output').classList.add('show');
+    usingTTS = tts;
+    document.getElementById('audioLabel').textContent = tts ? 'Browser TTS' : 'Audio File';
+    resetProgress();
+    document.getElementById('playBtn').textContent = '▶';
+    document.getElementById('audioStatus').textContent = 'Ready to play';
+    if (tts) setupTTS(summary); else setupFileAudio();
+  }
+
+  // ── File Audio ──
+  function setupFileAudio() {
+    player.onloadedmetadata = () => { document.getElementById('totTime').textContent = fmt(player.duration); };
+    player.ontimeupdate = () => {
+      const p = player.duration ? (player.currentTime / player.duration) * 100 : 0;
+      document.getElementById('fill').style.width = p + '%';
+      document.getElementById('curTime').textContent = fmt(player.currentTime);
+    };
+    player.onended = () => { document.getElementById('playBtn').textContent = '▶'; document.getElementById('audioStatus').textContent = 'Finished'; };
+  }
+
+  // ── TTS ──
+  function setupTTS(text) {
+    speechSynthesis.cancel();
+    ttsUtt = new SpeechSynthesisUtterance(text);
+    ttsUtt.rate = 1; ttsPlaying = false; ttsPaused = false; ttsElapsed = 0;
+    ttsDur = (text.split(/\s+/).length / 150) * 60;
+    document.getElementById('totTime').textContent = fmt(ttsDur);
+    ttsUtt.onend = () => {
+      ttsPlaying = false; ttsPaused = false; clearInterval(ttsTimer);
+      document.getElementById('playBtn').textContent = '▶';
+      document.getElementById('fill').style.width = '100%';
+      document.getElementById('curTime').textContent = fmt(ttsDur);
+      document.getElementById('audioStatus').textContent = 'Finished';
+    };
+  }
+
+  function togglePlay() { usingTTS ? toggleTTS() : toggleFile(); }
+
+  function toggleFile() {
+    if (player.paused) {
+      player.play();
+      document.getElementById('playBtn').textContent = '⏸';
+      document.getElementById('audioStatus').textContent = 'Playing';
+    } else {
+      player.pause();
+      document.getElementById('playBtn').textContent = '▶';
+      document.getElementById('audioStatus').textContent = 'Paused';
+    }
+  }
+
+  function toggleTTS() {
+    if (!ttsUtt) return;
+    if (!ttsPlaying && !ttsPaused) {
+      speechSynthesis.speak(ttsUtt); ttsPlaying = true;
+      ttsStart = Date.now() - ttsElapsed * 1000; startTTSprog();
+      document.getElementById('playBtn').textContent = '⏸';
+      document.getElementById('audioStatus').textContent = 'Playing (TTS)';
+    } else if (ttsPlaying) {
+      speechSynthesis.pause(); ttsPaused = true; ttsPlaying = false;
+      ttsElapsed = (Date.now() - ttsStart) / 1000; clearInterval(ttsTimer);
+      document.getElementById('playBtn').textContent = '▶';
+      document.getElementById('audioStatus').textContent = 'Paused';
+    } else {
+      speechSynthesis.resume(); ttsPlaying = true; ttsPaused = false;
+      ttsStart = Date.now() - ttsElapsed * 1000; startTTSprog();
+      document.getElementById('playBtn').textContent = '⏸';
+      document.getElementById('audioStatus').textContent = 'Playing (TTS)';
+    }
+  }
+
+  function startTTSprog() {
+    clearInterval(ttsTimer);
+    ttsTimer = setInterval(() => {
+      const e = (Date.now() - ttsStart) / 1000;
+      document.getElementById('fill').style.width = Math.min((e/ttsDur)*100,100) + '%';
+      document.getElementById('curTime').textContent = fmt(e);
+    }, 200);
+  }
+
+  function stopTTS() {
+    speechSynthesis.cancel(); ttsPlaying = false; ttsPaused = false; ttsElapsed = 0; clearInterval(ttsTimer);
+  }
+
+  function seekAudio(e) {
+    if (usingTTS) return;
+    const rect = document.getElementById('track').getBoundingClientRect();
+    player.currentTime = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width)) * player.duration;
+  }
+
+  function setSpeed(rate, btn) {
+    document.querySelectorAll('.spd').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    if (usingTTS) { if (ttsUtt) ttsUtt.rate = rate; } else { player.playbackRate = rate; }
+  }
+
+  function resetProgress() {
+    document.getElementById('fill').style.width = '0%';
+    document.getElementById('curTime').textContent = '0:00';
+    document.getElementById('totTime').textContent = '0:00';
+  }
+
+  function fmt(s) {
+    if (!s || isNaN(s)) return '0:00';
+    return Math.floor(s/60) + ':' + String(Math.floor(s%60)).padStart(2,'0');
+  }
+
+  function copyEl(id, btn) {
+    navigator.clipboard.writeText(document.getElementById(id).textContent).then(() => {
+      btn.textContent = '✓ Copied!'; setTimeout(() => btn.textContent = '⎘ Copy', 1500);
+    });
+  }
+
+  function downloadSummary() {
+    const t = document.getElementById('transcriptionText').textContent;
+    const s = document.getElementById('summaryText').textContent;
+    const blob = new Blob([`TEXT PREVIEW\n${'─'.repeat(40)}\n${t}\n\nSUMMARY\n${'─'.repeat(40)}\n${s}`], {type:'text/plain'});
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'bookmind-summary.txt'; a.click();
+  }
+</script>
+</body>
+</html>
