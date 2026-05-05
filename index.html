@@ -224,29 +224,28 @@
 
 <nav>
   <div class="logo">Book<span>Mind</span></div>
-  <span class="nav-tag">✦ AI Powered</span>
 </nav>
 
 <section class="hero">
   <span class="hero-eyebrow">Summarize any book instantly</span>
   <h1>Turn Pages into<br/><em>Pure Insight</em></h1>
-  <p>Upload a .txt book file or audio, or paste text — get an AI summary with audio narration.</p>
+  <p>Upload a .txt, .pdf, or .docx book file, or paste text — get an AI summary with audio narration.</p>
 </section>
 
 <div class="card-wrap">
   <div class="card">
 
     <!-- Upload Zone -->
+    <!-- FIXED: accept includes .docx, removed audio types -->
     <label class="upload-zone" id="uploadZone">
-      <input type="file" id="fileInput" accept=".txt,.mp3,.wav,.m4a,.ogg" />
+      <input type="file" id="fileInput" accept=".txt,.pdf,.docx" />
       <span class="upload-icon">📖</span>
       <div class="upload-title">Drop your file here</div>
       <div class="upload-sub">Click to browse</div>
       <div class="file-types">
         <span class="file-badge">TXT Book</span>
-        <span class="file-badge">MP3</span>
-        <span class="file-badge">WAV</span>
-        <span class="file-badge">M4A</span>
+        <span class="file-badge">PDF</span>
+        <span class="file-badge">DOCX</span>
       </div>
       <div class="file-selected" id="fileMsg"></div>
     </label>
@@ -296,7 +295,7 @@
         <div class="audio-body">
           <div class="audio-player">
             <div class="controls">
-              <button class="play-btn" id="playBtn" onclick="togglePlay()">▶</button>
+              <button class="play-btn" id="playBtn" onclick="togglePlay()">▶️</button>
               <div class="progress-wrap">
                 <div class="track" id="track" onclick="seekAudio(event)">
                   <div class="fill" id="fill"></div>
@@ -326,7 +325,7 @@
   </div>
 </div>
 
-<footer>Made with <span>♥</span> using AI — BookMind &copy; 2025</footer>
+<footer>BookMind &copy; 2026</footer>
 
 <script>
   // ── File select UI ──
@@ -381,31 +380,22 @@
         const file = fileInput.files[0];
         const name = file.name.toLowerCase();
 
-        if (name.endsWith('.txt')) {
-          // ── TXT book → /upload-book ──
-          const fd = new FormData(); fd.append('file', file);
+        // FIXED: .txt, .pdf, .docx all go to /upload-book
+        if (name.endsWith('.txt') || name.endsWith('.pdf') || name.endsWith('.docx')) {
+          const fd = new FormData();
+          fd.append('file', file);
           const resp = await fetch('http://localhost:5000/upload-book', { method: 'POST', body: fd });
           if (!resp.ok) { const t = await resp.text(); throw new Error(t); }
           const data = await resp.json();
           if (data.error) throw new Error(data.error);
-          showOutput(data.transcription, data.summary, true); // TTS for text
-
-        } else if (/\.(mp3|wav|m4a|ogg)$/i.test(name)) {
-          // ── Audio → /summarize ──
-          player.src = URL.createObjectURL(file);
-          const fd = new FormData(); fd.append('file', file);
-          const resp = await fetch('http://localhost:5000/summarize', { method: 'POST', body: fd });
-          if (!resp.ok) { const t = await resp.text(); throw new Error(t); }
-          const data = await resp.json();
-          if (data.error) throw new Error(data.error);
-          showOutput(data.transcription, data.summary, false); // file audio
+          showOutput(data.transcription, data.summary, true);
 
         } else {
-          throw new Error('Unsupported file type. Use .txt, .mp3, .wav, .m4a');
+          throw new Error('Unsupported file type. Please use .txt, .pdf, or .docx');
         }
 
       } else {
-        // ── Pasted text → /summarize-text ──
+        // Pasted text → /summarize-text
         const resp = await fetch('http://localhost:5000/summarize-text', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -414,7 +404,7 @@
         if (!resp.ok) { const t = await resp.text(); throw new Error(t); }
         const data = await resp.json();
         if (data.error) throw new Error(data.error);
-        showOutput(data.transcription, data.summary, true); // TTS
+        showOutput(data.transcription, data.summary, true);
       }
 
     } catch (err) {
@@ -433,7 +423,7 @@
     usingTTS = tts;
     document.getElementById('audioLabel').textContent = tts ? 'Browser TTS' : 'Audio File';
     resetProgress();
-    document.getElementById('playBtn').textContent = '▶';
+    document.getElementById('playBtn').textContent = '▶️';
     document.getElementById('audioStatus').textContent = 'Ready to play';
     if (tts) setupTTS(summary); else setupFileAudio();
   }
@@ -446,7 +436,7 @@
       document.getElementById('fill').style.width = p + '%';
       document.getElementById('curTime').textContent = fmt(player.currentTime);
     };
-    player.onended = () => { document.getElementById('playBtn').textContent = '▶'; document.getElementById('audioStatus').textContent = 'Finished'; };
+    player.onended = () => { document.getElementById('playBtn').textContent = '▶️'; document.getElementById('audioStatus').textContent = 'Finished'; };
   }
 
   // ── TTS ──
@@ -458,7 +448,7 @@
     document.getElementById('totTime').textContent = fmt(ttsDur);
     ttsUtt.onend = () => {
       ttsPlaying = false; ttsPaused = false; clearInterval(ttsTimer);
-      document.getElementById('playBtn').textContent = '▶';
+      document.getElementById('playBtn').textContent = '▶️';
       document.getElementById('fill').style.width = '100%';
       document.getElementById('curTime').textContent = fmt(ttsDur);
       document.getElementById('audioStatus').textContent = 'Finished';
@@ -474,7 +464,7 @@
       document.getElementById('audioStatus').textContent = 'Playing';
     } else {
       player.pause();
-      document.getElementById('playBtn').textContent = '▶';
+      document.getElementById('playBtn').textContent = '▶️';
       document.getElementById('audioStatus').textContent = 'Paused';
     }
   }
@@ -489,7 +479,7 @@
     } else if (ttsPlaying) {
       speechSynthesis.pause(); ttsPaused = true; ttsPlaying = false;
       ttsElapsed = (Date.now() - ttsStart) / 1000; clearInterval(ttsTimer);
-      document.getElementById('playBtn').textContent = '▶';
+      document.getElementById('playBtn').textContent = '▶️';
       document.getElementById('audioStatus').textContent = 'Paused';
     } else {
       speechSynthesis.resume(); ttsPlaying = true; ttsPaused = false;

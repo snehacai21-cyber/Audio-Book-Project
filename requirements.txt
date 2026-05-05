@@ -1,0 +1,11 @@
+flask>=3.0.0
+werkzeug>=3.0.0
+transformers>=4.36.0
+torch>=2.0.0
+sentencepiece>=0.1.99
+pdfplumber>=0.10.0
+python-pptx>=0.6.21
+gTTS>=2.5.0
+evaluate>=0.4.0
+rouge_score>=0.1.2
+numpy>=1.24.0
