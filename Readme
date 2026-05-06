@@ -1,0 +1,187 @@
+# Audio-Based Book Summarization System
+### Architecture: BART · Dataset: CMU Book Summary · Framework: Hugging Face
+
+---
+
+## Overview
+
+This system implements the **BART** (Bidirectional and Auto-Regressive Transformers)
+architecture proposed by Lewis et al. (ACL 2020) to perform **abstractive book
+summarization**. Given a book's plot/description, the model generates a concise,
+fluent summary — which can optionally be converted to speech.
+
+```
+Book Text  ──►  BART Encoder (bidirectional)  ──►  BART Decoder (autoregressive)
+                        │                                    │
+                 Contextual representations          Beam-search decoding
+                                                            │
+                                                    Abstractive Summary
+                                                            │
+                                               [Optional] Text-to-Speech (MP3)
+```
+
+---
+
+## Architecture Choices (from the paper)
+
+| Component | Choice | Why |
+|-----------|--------|-----|
+| Pre-training | BART (text infilling + sentence permutation) | Best ROUGE on summarization |
+| Encoder | Bidirectional Transformer (12 layers) | Captures full context |
+| Decoder | Auto-regressive left-to-right (12 layers) | Fluent generation |
+| Fine-tuning | Seq2Seq with label-smoothed cross-entropy | Matches BART paper §3.3 |
+| Decoding | Beam search (k=4), length penalty=2.0, no-repeat-3gram | Standard for summarization |
+| Evaluation | ROUGE-1, ROUGE-2, ROUGE-L | Standard summarization metrics |
+
+---
+
+## Project Structure
+
+```
+book_summarizer/
+├── train.py            ← Full training pipeline
+├── inference.py        ← Summarization + optional TTS
+├── evaluate_model.py   ← Standalone ROUGE evaluation
+├── requirements.txt    ← All dependencies
+├── setup.sh            ← One-shot environment setup
+├── data/
+│   └── booksummarization.csv
+├── saved_model/        ← Fine-tuned model (after training)
+├── outputs/            ← Checkpoints during training
+└── logs/               ← TensorBoard-compatible logs
+```
+
+---
+
+## Quick Start
+
+```bash
+# 1. Set up environment
+bash setup.sh
+
+# 2. Train the model
+python train.py
+
+# 3. Summarize a book (text)
+python inference.py --text "Old Major, the old boar on the Manor Farm…" --title "Animal Farm"
+
+# 4. Summarize a text file
+python inference.py --file my_book.txt --title "My Book"
+
+# 5. Summarize a PDF
+python inference.py --pdf my_book.pdf --title "My Book"
+
+# 6. Summarize + generate audio
+python inference.py --text "…" --tts --tts_backend gtts
+
+# 7. Run evaluation report
+python evaluate_model.py --model_path saved_model --num_samples 200
+```
+
+---
+
+## Dataset
+
+**CMU Book Summary Dataset** (Bamman & Smith, 2013)
+- 16,559 book plot summaries from Wikipedia
+- Tab-separated: `id | book_id | title | author | date | genres | summary`
+- Average summary length: ~430 words
+- Long summaries (up to 10,000 words) handled via **chunking**
+
+---
+
+## Chunking Strategy
+
+Books can be very long. The system handles this with **overlapping token windows**:
+
+```
+Text: [-----chunk1------]
+                [-----chunk2------]
+                        [-----chunk3------]
+      ←── stride ──►←─── overlap ───►
+```
+
+- `chunk_size = 450 tokens` (safe below BART's 512 limit)
+- `overlap = 50 tokens` (prevents losing cross-boundary context)
+- `merge_strategy = "concat"` or `"recursive"` (recursive = summarize the summaries)
+
+---
+
+## Training Configuration
+
+| Parameter | Value |
+|-----------|-------|
+| Base model | `facebook/bart-base` |
+| Max input length | 512 tokens |
+| Max target length | 128 tokens |
+| Epochs | 3 |
+| Train/Val split | 90/10 |
+| Effective batch size | 16 (4 × 4 accumulation) |
+| Learning rate | 3e-5 |
+| Warmup ratio | 6% |
+| FP16 | Yes (if GPU available) |
+| Early stopping | Patience 3 |
+| Best model selection | ROUGE-2 |
+
+---
+
+## Expected ROUGE Scores
+
+After 3 epochs on the CMU dataset (target = first 80 words of plot):
+
+| Metric | Expected Range |
+|--------|---------------|
+| ROUGE-1 | 42–48 |
+| ROUGE-2 | 18–24 |
+| ROUGE-L | 38–44 |
+
+> Note: These scores reflect the self-supervised "headline extraction" proxy.
+> With human-written reference summaries (e.g. GoodReads), ROUGE would typically be lower.
+
+---
+
+## Text-to-Speech Integration
+
+Two backends are supported:
+
+### Online (gTTS — Google TTS)
+```python
+from inference import SummaryToSpeech
+tts = SummaryToSpeech(backend="gtts", language="en")
+tts.speak("The farm animals revolted against their human masters.", "summary.mp3")
+```
+
+### Offline (pyttsx3)
+```python
+tts = SummaryToSpeech(backend="pyttsx3")
+tts.speak("Summary text here.", "output.mp3")
+```
+
+### Full pipeline
+```python
+from inference import BookSummarizer, SummaryToSpeech
+
+summarizer = BookSummarizer("saved_model")
+summary = summarizer.summarize(long_book_text, title="Animal Farm")
+
+tts = SummaryToSpeech(backend="gtts")
+tts.speak(summary, "animal_farm_summary.mp3")
+```
+
+---
+
+## Upgrading to BART-Large
+
+For better quality (requires ~16GB GPU VRAM):
+1. In `train.py`, set `model_name = "facebook/bart-large-cnn"` — already fine-tuned on CNN/DM
+2. Reduce `train_batch_size` to 2 and increase `gradient_accumulation_steps` to 8
+3. Lower `learning_rate` to 1e-5 for fine-tuning from bart-large-cnn
+
+---
+
+## References
+
+- Lewis et al. (2020). *BART: Denoising Sequence-to-Sequence Pre-training for Natural
+  Language Generation, Translation, and Comprehension.* ACL 2020.
+- Bamman & Smith (2013). *New Alignment Methods for Discriminative Book Summarization.*
+  CMU Book Summary Dataset.

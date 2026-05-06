@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+venv/
+.env
+
+outputs/
+outputs.zip
+saved_model/
+
+node_modules/
+
+*.zip
